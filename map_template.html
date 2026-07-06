@@ -10,7 +10,10 @@
   html, body { margin:0; padding:0; height:100%; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
   #map { position:absolute; top:0; bottom:0; left:0; right:0; }
   .panel {
-    position:absolute; z-index:1000; background:rgba(255,255,255,0.95);
+    /* z-index 550 sits above Leaflet's tile/overlay panes (<=500) but below its
+       marker/tooltip/popup panes (>=600), so popups never render underneath
+       these fixed UI panels even when a marker is near the panel's screen position. */
+    position:absolute; z-index:550; background:rgba(255,255,255,0.95);
     border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.25); padding:10px 14px;
   }
   #title-panel { top:10px; left:10px; max-width:340px; }
@@ -18,7 +21,7 @@
   #title-panel p { font-size:11.5px; margin:2px 0; color:#444; line-height:1.4; }
   #title-panel a { color:#1a6ec1; }
   #control-panel { bottom:20px; left:10px; right:10px; margin:0 auto; max-width:720px; }
-  #legend-panel { top:10px; right:10px; font-size:12px; }
+  #legend-panel { top:10px; right:10px; font-size:12px; max-width:210px; }
   .row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
   #quarterLabel { font-weight:600; font-size:15px; width:70px; text-align:center; }
   #quarterSlider { flex:1; }
@@ -39,6 +42,10 @@
   #regionFilter { max-width:140px; }
   .spark-wrap { margin-top:6px; }
   .spark-wrap svg { display:block; }
+  .legend-section { margin-top:10px; padding-top:8px; border-top:1px solid #e5e5e5; }
+  .legend-chip { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:#333; margin:1px 8px 1px 0; }
+  .legend-dot { width:9px; height:9px; border-radius:50%; border:1px solid #000; display:inline-block; }
+  .conflict-popup-notes { font-size:11px; color:#555; margin-top:3px; max-width:230px; }
 </style>
 </head>
 <body>
@@ -54,6 +61,8 @@
   <p>Circle color/size = activity index for the selected quarter (mean across satellite images observed that
   quarter). <b>~0</b> = typical non-market-day baseline · <b>~100</b> = typical market-day activity for that market/year.
   Click a circle for details.</p>
+  <p>Triangles = <a href="https://acleddata.com/" target="_blank">ACLED</a> conflict events in that quarter.
+  Each market's popup also plots nearby conflict counts against its activity history.</p>
 </div>
 
 <div class="panel" id="legend-panel">
@@ -61,6 +70,11 @@
   <div class="legend-grad"></div>
   <div class="legend-labels"><span>&lt;0</span><span>50</span><span>100</span><span>150</span><span>200+</span></div>
   <div class="obs-note">Grey = no cloud-free imagery that quarter.<br/>Circle radius ~ number of images used.</div>
+  <div class="legend-section">
+    <div style="margin-bottom:3px;"><b>Conflict events (ACLED)</b></div>
+    <div id="conflictLegendChips"></div>
+    <div class="obs-note">Triangle size ~ fatalities. Shown for the selected quarter only.</div>
+  </div>
 </div>
 
 <div class="panel" id="control-panel">
@@ -80,6 +94,9 @@
     <label style="font-size:12px; margin-left:10px;">
       <input type="checkbox" id="adm1Toggle" checked/> Region boundaries
     </label>
+    <label style="font-size:12px; margin-left:10px;">
+      <input type="checkbox" id="conflictToggle" checked/> Conflict events
+    </label>
     <span style="font-size:11px; color:#666; margin-left:auto;">
       <span id="activeCount"></span> markets with data this quarter
     </span>
@@ -89,10 +106,30 @@
 <script>
 const ACTIVITY = __ACTIVITY_DATA__;
 const ADM1 = __ADM1_DATA__;
+const CONFLICT = __CONFLICT_DATA__;
 
 const quarters = ACTIVITY.quarters;
 const markets = ACTIVITY.markets;
 const marketIds = Object.keys(markets);
+const conflictRadiusKm = ACTIVITY.conflict_radius_km;
+
+// categorical colors for ACLED event types (distinct from the red/blue activity scale)
+const EVENT_COLORS = {
+  'Battles': '#8b0000',
+  'Violence against civilians': '#000000',
+  'Explosions/Remote violence': '#ff7f00',
+  'Riots': '#c99a00',
+  'Protests': '#4daf4a',
+  'Strategic developments': '#377eb8',
+};
+function eventColor(type) { return EVENT_COLORS[type] || '#888888'; }
+
+// keep popups from opening underneath the fixed title/legend/control panels
+// by reserving their approximate screen footprint from Leaflet's auto-pan.
+const POPUP_AUTOPAN = {
+  autoPanPaddingTopLeft: [360, 300],
+  autoPanPaddingBottomRight: [220, 130],
+};
 
 document.getElementById('marketCount').textContent = marketIds.length.toLocaleString();
 
@@ -105,8 +142,17 @@ regions.forEach(r => {
   regionSel.appendChild(opt);
 });
 
+// conflict-type legend chips
+const conflictLegendEl = document.getElementById('conflictLegendChips');
+CONFLICT.event_types.forEach(t => {
+  const chip = document.createElement('span');
+  chip.className = 'legend-chip';
+  chip.innerHTML = `<span class="legend-dot" style="background:${eventColor(t)}"></span>${t}`;
+  conflictLegendEl.appendChild(chip);
+});
+
 // map setup
-const map = L.map('map', { zoomControl: true }).setView([9.0, 39.5], 6.4);
+const map = L.map('map', { zoomControl: false }).setView([9.0, 39.5], 6.4);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
   subdomains: 'abcd', maxZoom: 18
@@ -122,6 +168,11 @@ const adm1Layer = L.geoJSON(ADM1, {
 
 document.getElementById('adm1Toggle').addEventListener('change', e => {
   if (e.target.checked) adm1Layer.addTo(map); else map.removeLayer(adm1Layer);
+});
+
+document.getElementById('conflictToggle').addEventListener('change', e => {
+  conflictVisible = e.target.checked;
+  refreshConflictLayer();
 });
 
 // color scale: diverging around 100
@@ -155,6 +206,34 @@ marketIds.forEach(id => {
   circles[id] = c;
 });
 
+// --- ACLED conflict event points, grouped by quarter for cheap toggling ---
+const conflictLayer = L.layerGroup().addTo(map);
+const eventsByQuarter = {};
+quarters.forEach(q => { eventsByQuarter[q] = []; });
+
+function conflictRadiusFor(fatalities) {
+  return Math.min(11, 3 + Math.sqrt(fatalities) * 1.8);
+}
+
+CONFLICT.events.forEach(ev => {
+  const marker = L.circleMarker([ev.lat, ev.lon], {
+    radius: conflictRadiusFor(ev.fat),
+    weight: 1.2,
+    color: '#fff',
+    fillColor: eventColor(ev.type),
+    fillOpacity: 0.85,
+    opacity: 0.9,
+  });
+  marker.bindPopup(
+    `<b>${ev.type}</b>${ev.sub ? ' &ndash; ' + ev.sub : ''}<br/>` +
+    `${ev.date} &middot; ${ev.loc || 'location unspecified'}<br/>` +
+    `Fatalities: <b>${ev.fat}</b>${ev.a1 ? '<br/>Actor: ' + ev.a1 : ''}` +
+    (ev.notes ? `<div class="conflict-popup-notes">${ev.notes}</div>` : ''),
+    { maxWidth: 260, ...POPUP_AUTOPAN }
+  );
+  if (eventsByQuarter[ev.q]) eventsByQuarter[ev.q].push(marker);
+});
+
 function dayNames(arr) {
   const names = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   if (!arr || !arr.length) return 'unknown';
@@ -171,7 +250,12 @@ function buildSparklineSvg(id, highlightIdx) {
     return '<div style="font-size:11px;color:#888;">No time series data available</div>';
   }
 
-  const w = 260, h = 68, padL = 26, padR = 6, padT = 6, padB = 14;
+  const conflictQ = m.conflict || {};
+  const conflictCounts = quarters.map(q => (conflictQ[q] ? conflictQ[q][0] : 0));
+  const conflictFatal = quarters.map(q => (conflictQ[q] ? conflictQ[q][1] : 0));
+  const maxConflict = Math.max(0, ...conflictCounts);
+
+  const w = 260, h = 82, padL = 26, padR = 6, padT = 6, padB = 14;
   const plotW = w - padL - padR, plotH = h - padT - padB;
 
   const yMin = Math.min(0, ...valid);
@@ -181,6 +265,20 @@ function buildSparklineSvg(id, highlightIdx) {
 
   const xAt = i => padL + (i / (quarters.length - 1)) * plotW;
   const yAt = v => padT + (1 - (v - domainMin) / (domainMax - domainMin)) * plotH;
+
+  // conflict bars (own independent scale, drawn behind the activity line)
+  const barW = Math.max(1.5, (plotW / quarters.length) * 0.55);
+  const barMaxH = plotH * 0.85;
+  let bars = '';
+  if (maxConflict > 0) {
+    conflictCounts.forEach((cnt, i) => {
+      if (!cnt) return;
+      const bh = (cnt / maxConflict) * barMaxH;
+      const x = xAt(i) - barW / 2;
+      const y = (h - padB) - bh;
+      bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#c0392b" opacity="0.30"><title>${quarters[i]}: ${cnt} ACLED event${cnt===1?'':'s'} within ${conflictRadiusKm}km, ${conflictFatal[i]} fatalities</title></rect>`;
+    });
+  }
 
   // build path, breaking the line across gaps (missing quarters)
   let d = '';
@@ -216,9 +314,14 @@ function buildSparklineSvg(id, highlightIdx) {
     highlightLine = `<line x1="${x}" y1="${padT}" x2="${x}" y2="${h - padB}" stroke="#1a6ec1" stroke-width="1" stroke-dasharray="2,2" opacity="0.6"/>`;
   }
 
+  const conflictNote = maxConflict > 0
+    ? `<div class="obs-note">Red bars: ACLED events within ${conflictRadiusKm}km (own scale, max ${maxConflict}/qtr). Hover a bar for details.</div>`
+    : `<div class="obs-note">No ACLED events within ${conflictRadiusKm}km in this period.</div>`;
+
   return `
   <div class="spark-wrap">
     <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+      ${bars}
       <line x1="${padL}" y1="${zeroY}" x2="${w - padR}" y2="${zeroY}" stroke="#ddd" stroke-width="1"/>
       <text x="2" y="${parseFloat(zeroY)+3}" font-size="8.5" fill="#aaa">0</text>
       <line x1="${padL}" y1="${hundredY}" x2="${w - padR}" y2="${hundredY}" stroke="#ddd" stroke-width="1" stroke-dasharray="2,2"/>
@@ -228,6 +331,7 @@ function buildSparklineSvg(id, highlightIdx) {
       ${dots}
       ${yearTicks}
     </svg>
+    ${conflictNote}
   </div>`;
 }
 
@@ -239,15 +343,28 @@ function popupHtml(id, quarterIdx) {
   const current = rec
     ? `<br/>Quarter: ${q} &nbsp;Activity index: <b>${rec[0].toFixed(1)}</b> &nbsp;(${rec[1]} image${rec[1]===1?'':'s'})`
     : `<br/>Quarter: ${q} &nbsp;<span style="color:#888;">no cloud-free imagery</span>`;
-  return header + current + buildSparklineSvg(id, quarterIdx);
+  const conflictRec = m.conflict && m.conflict[q];
+  const conflictLine = conflictRec
+    ? `<br/>Conflict (within ${conflictRadiusKm}km): <b>${conflictRec[0]}</b> event${conflictRec[0]===1?'':'s'}, ${conflictRec[1]} fatalities`
+    : `<br/>Conflict (within ${conflictRadiusKm}km): none this quarter`;
+  return header + current + conflictLine + buildSparklineSvg(id, quarterIdx);
 }
 
 let currentQuarterIdx = 0;
 let currentRegion = '__ALL__';
+let conflictVisible = true;
+
+function refreshConflictLayer() {
+  conflictLayer.clearLayers();
+  if (!conflictVisible) return;
+  const q = quarters[currentQuarterIdx];
+  eventsByQuarter[q].forEach(marker => conflictLayer.addLayer(marker));
+}
 
 function refresh() {
   const q = quarters[currentQuarterIdx];
   document.getElementById('quarterLabel').textContent = q;
+  refreshConflictLayer();
   let activeCount = 0;
   marketIds.forEach(id => {
     const m = markets[id];
@@ -269,7 +386,7 @@ function refresh() {
     // (re)build popup content lazily on open; if already open (e.g. during
     // Play), refresh it in place so the sparkline's highlighted point moves.
     if (!c.getPopup()) {
-      c.bindPopup('', { maxWidth: 300 });
+      c.bindPopup('', { maxWidth: 300, ...POPUP_AUTOPAN });
       c.on('popupopen', () => c.setPopupContent(popupHtml(id, currentQuarterIdx)));
     }
     if (c.isPopupOpen()) {

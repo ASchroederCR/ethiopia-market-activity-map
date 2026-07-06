@@ -19,8 +19,12 @@ that market in that year.
 
 - Quarter slider with play/pause animation
 - Region (admin-1) filter and boundary overlay
-- Click any market for a popup with a sparkline of its full quarterly time series, highlighting the
-  currently selected quarter
+- [ACLED](https://acleddata.com/) conflict events plotted as color-coded triangles for the selected
+  quarter, toggleable, to visually compare conflict incidence against market activity
+- Click any market for a popup with a sparkline of its full quarterly activity-index time series
+  (highlighting the currently selected quarter) with a second series overlaid showing nearby ACLED
+  conflict events per quarter (count within 20km, and fatalities), so activity dips can be checked
+  against conflict spikes market by market
 - Self-contained `index.html` — the aggregated data is embedded directly in the page, no server-side
   component required
 
@@ -28,10 +32,12 @@ that market in that year.
 
 - `index.html` — the map (also the GitHub Pages entry point)
 - `map_template.html` — the HTML/JS template before data is embedded
-- `build_ethiopia_data.py` — aggregates the raw per-image CSVs (from the replication package) into
-  `ethiopia_market_activity.json` and `ethiopia_adm1.geojson`
+- `build_ethiopia_data.py` — aggregates the raw per-image CSVs and ACLED conflict data (from the
+  replication package) into `ethiopia_market_activity.json` (which also carries each market's nearby-conflict
+  series), `ethiopia_conflict_events.json`, and `ethiopia_adm1.geojson`
 - `build_html.py` — embeds those JSON/GeoJSON files into `map_template.html` to produce `index.html`
-- `ethiopia_market_activity.json`, `ethiopia_adm1.geojson` — the aggregated data, also embedded in `index.html`
+- `ethiopia_market_activity.json`, `ethiopia_conflict_events.json`, `ethiopia_adm1.geojson` — the
+  aggregated data, also embedded in `index.html`
 
 This is an independent, derived visualization — not part of the official replication package, and not
 affiliated with the paper's authors.
