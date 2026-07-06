@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Ethiopia Rural Market Activity Index (2018-2023)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  html, body { margin:0; padding:0; height:100%; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  #map { position:absolute; top:0; bottom:0; left:0; right:0; }
+  .panel {
+    position:absolute; z-index:1000; background:rgba(255,255,255,0.95);
+    border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.25); padding:10px 14px;
+  }
+  #title-panel { top:10px; left:10px; max-width:340px; }
+  #title-panel h1 { font-size:15px; margin:0 0 4px 0; }
+  #title-panel p { font-size:11.5px; margin:2px 0; color:#444; line-height:1.4; }
+  #title-panel a { color:#1a6ec1; }
+  #control-panel { bottom:20px; left:10px; right:10px; margin:0 auto; max-width:720px; }
+  #legend-panel { top:10px; right:10px; font-size:12px; }
+  .row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  #quarterLabel { font-weight:600; font-size:15px; width:70px; text-align:center; }
+  #quarterSlider { flex:1; }
+  button.ctrl {
+    background:#1a6ec1; color:#fff; border:none; border-radius:5px; padding:6px 12px;
+    cursor:pointer; font-size:12px;
+  }
+  button.ctrl:hover { background:#155a9e; }
+  select, #speed { font-size:12px; padding:3px; border-radius:4px; }
+  .legend-grad { width:180px; height:12px; border-radius:2px;
+    background: linear-gradient(to right, #b2182b, #ef8a62, #fddbc7, #d9f0d3, #67a9cf, #2166ac);
+    margin: 4px 0;
+  }
+  .legend-labels { display:flex; justify-content:space-between; font-size:10px; color:#333; width:180px; }
+  .obs-note { font-size:10.5px; color:#666; margin-top:6px; max-width:200px; }
+  .leaflet-popup-content { font-size:12.5px; line-height:1.5; }
+  .leaflet-popup-content-wrapper { max-width:none; }
+  #regionFilter { max-width:140px; }
+  .spark-wrap { margin-top:6px; }
+  .spark-wrap svg { display:block; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="panel" id="title-panel">
+  <h1>Ethiopia Rural Market Activity Index</h1>
+  <p>Quarterly satellite-derived activity at <b><span id="marketCount"></span> candidate market locations</b>,
+  detected and measured via the Market Activity Index (MAI) method described in
+  <a href="https://arxiv.org/abs/2407.12953" target="_blank">Doran, Boehnke &amp; Krusell (2024)</a>.
+  Data source: <a href="https://github.com/pauldingus/MAI-replication-package" target="_blank">MAI replication package</a>.</p>
+  <p>Circle color/size = activity index for the selected quarter (mean across satellite images observed that
+  quarter). <b>~0</b> = typical non-market-day baseline · <b>~100</b> = typical market-day activity for that market/year.
+  Click a circle for details.</p>
+</div>
+
+<div class="panel" id="legend-panel">
+  <div><b>Activity index</b></div>
+  <div class="legend-grad"></div>
+  <div class="legend-labels"><span>&lt;0</span><span>50</span><span>100</span><span>150</span><span>200+</span></div>
+  <div class="obs-note">Grey = no cloud-free imagery that quarter.<br/>Circle radius ~ number of images used.</div>
+</div>
+
+<div class="panel" id="control-panel">
+  <div class="row">
+    <button class="ctrl" id="playBtn">&#9654; Play</button>
+    <span id="quarterLabel">--</span>
+    <input type="range" id="quarterSlider" min="0" max="1" value="0" step="1" />
+    <select id="speed">
+      <option value="1400">Slow</option>
+      <option value="700" selected>Normal</option>
+      <option value="300">Fast</option>
+    </select>
+  </div>
+  <div class="row">
+    <label style="font-size:12px;">Region: </label>
+    <select id="regionFilter"><option value="__ALL__">All regions</option></select>
+    <label style="font-size:12px; margin-left:10px;">
+      <input type="checkbox" id="adm1Toggle" checked/> Region boundaries
+    </label>
+    <span style="font-size:11px; color:#666; margin-left:auto;">
+      <span id="activeCount"></span> markets with data this quarter
+    </span>
+  </div>
+</div>
+
+<script>
+const ACTIVITY = __ACTIVITY_DATA__;
+const ADM1 = __ADM1_DATA__;
+
+const quarters = ACTIVITY.quarters;
+const markets = ACTIVITY.markets;
+const marketIds = Object.keys(markets);
+
+document.getElementById('marketCount').textContent = marketIds.length.toLocaleString();
+
+// region dropdown
+const regions = [...new Set(marketIds.map(id => markets[id].region))].sort();
+const regionSel = document.getElementById('regionFilter');
+regions.forEach(r => {
+  const opt = document.createElement('option');
+  opt.value = r; opt.textContent = r;
+  regionSel.appendChild(opt);
+});
+
+// map setup
+const map = L.map('map', { zoomControl: true }).setView([9.0, 39.5], 6.4);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  subdomains: 'abcd', maxZoom: 18
+}).addTo(map);
+
+const adm1Layer = L.geoJSON(ADM1, {
+  style: { color: '#555', weight: 1, fillOpacity: 0, dashArray: '3,3' },
+  onEachFeature: (feature, layer) => {
+    const name = feature.properties.ADM1_NAME || feature.properties.ADM1_EN || feature.properties.NAME_1 || '';
+    if (name) layer.bindTooltip(String(name), { sticky: true, className: 'adm1-tip' });
+  }
+}).addTo(map);
+
+document.getElementById('adm1Toggle').addEventListener('change', e => {
+  if (e.target.checked) adm1Layer.addTo(map); else map.removeLayer(adm1Layer);
+});
+
+// color scale: diverging around 100
+function colorFor(v) {
+  if (v === null || v === undefined) return '#bbbbbb';
+  const stops = [
+    [-9999, '#b2182b'], [0, '#b2182b'], [50, '#ef8a62'], [100, '#fddbc7'],
+    [130, '#d9f0d3'], [170, '#67a9cf'], [9999, '#2166ac']
+  ];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (v <= stops[i+1][0]) return stops[i][1];
+  }
+  return stops[stops.length - 1][1];
+}
+function radiusFor(n) {
+  if (!n) return 2;
+  return Math.min(9, 3 + Math.sqrt(n) * 1.3);
+}
+
+// build one circleMarker per market, store reference
+const markerLayer = L.layerGroup().addTo(map);
+const circles = {};
+marketIds.forEach(id => {
+  const m = markets[id];
+  const c = L.circleMarker([m.lat, m.lon], {
+    radius: 4, weight: 1, color: '#333', fillColor: '#bbbbbb',
+    fillOpacity: 0.85, opacity: 0.6
+  });
+  c.marketId = id;
+  c.addTo(markerLayer);
+  circles[id] = c;
+});
+
+function dayNames(arr) {
+  const names = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  if (!arr || !arr.length) return 'unknown';
+  return arr.map(d => names[d] !== undefined ? names[d] : d).join(', ');
+}
+
+// Compact inline SVG sparkline of a market's full quarterly activity-index
+// history, with the currently-selected quarter highlighted.
+function buildSparklineSvg(id, highlightIdx) {
+  const m = markets[id];
+  const series = quarters.map(q => (m.q[q] ? m.q[q][0] : null));
+  const valid = series.filter(v => v !== null);
+  if (valid.length === 0) {
+    return '<div style="font-size:11px;color:#888;">No time series data available</div>';
+  }
+
+  const w = 260, h = 68, padL = 26, padR = 6, padT = 6, padB = 14;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  const yMin = Math.min(0, ...valid);
+  const yMax = Math.max(150, ...valid);
+  const yPad = (yMax - yMin) * 0.08 || 10;
+  const domainMin = yMin - yPad, domainMax = yMax + yPad;
+
+  const xAt = i => padL + (i / (quarters.length - 1)) * plotW;
+  const yAt = v => padT + (1 - (v - domainMin) / (domainMax - domainMin)) * plotH;
+
+  // build path, breaking the line across gaps (missing quarters)
+  let d = '';
+  let drawing = false;
+  series.forEach((v, i) => {
+    if (v === null) { drawing = false; return; }
+    const cmd = drawing ? 'L' : 'M';
+    d += `${cmd}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)} `;
+    drawing = true;
+  });
+
+  const zeroY = yAt(0).toFixed(1);
+  const hundredY = yAt(100).toFixed(1);
+
+  // year tick labels at each Q1
+  let yearTicks = '';
+  quarters.forEach((q, i) => {
+    if (q.endsWith('Q1')) {
+      yearTicks += `<text x="${xAt(i).toFixed(1)}" y="${h - 2}" font-size="8.5" fill="#888" text-anchor="middle">${q.slice(2,4)}</text>`;
+    }
+  });
+
+  let dots = '';
+  series.forEach((v, i) => {
+    if (v === null) return;
+    const isCurrent = i === highlightIdx;
+    dots += `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(v).toFixed(1)}" r="${isCurrent ? 3.2 : 1.4}" fill="${isCurrent ? '#1a6ec1' : '#888'}" ${isCurrent ? 'stroke="#fff" stroke-width="1"' : ''}/>`;
+  });
+
+  let highlightLine = '';
+  if (highlightIdx !== null && highlightIdx !== undefined) {
+    const x = xAt(highlightIdx).toFixed(1);
+    highlightLine = `<line x1="${x}" y1="${padT}" x2="${x}" y2="${h - padB}" stroke="#1a6ec1" stroke-width="1" stroke-dasharray="2,2" opacity="0.6"/>`;
+  }
+
+  return `
+  <div class="spark-wrap">
+    <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+      <line x1="${padL}" y1="${zeroY}" x2="${w - padR}" y2="${zeroY}" stroke="#ddd" stroke-width="1"/>
+      <text x="2" y="${parseFloat(zeroY)+3}" font-size="8.5" fill="#aaa">0</text>
+      <line x1="${padL}" y1="${hundredY}" x2="${w - padR}" y2="${hundredY}" stroke="#ddd" stroke-width="1" stroke-dasharray="2,2"/>
+      <text x="2" y="${parseFloat(hundredY)+3}" font-size="8.5" fill="#aaa">100</text>
+      ${highlightLine}
+      <path d="${d.trim()}" fill="none" stroke="#1a6ec1" stroke-width="1.4"/>
+      ${dots}
+      ${yearTicks}
+    </svg>
+  </div>`;
+}
+
+function popupHtml(id, quarterIdx) {
+  const m = markets[id];
+  const q = quarters[quarterIdx];
+  const rec = m.q[q];
+  const header = `<b>${id}</b><br/>Region: ${m.region}<br/>Market day(s): ${dayNames(m.mktDays)}`;
+  const current = rec
+    ? `<br/>Quarter: ${q} &nbsp;Activity index: <b>${rec[0].toFixed(1)}</b> &nbsp;(${rec[1]} image${rec[1]===1?'':'s'})`
+    : `<br/>Quarter: ${q} &nbsp;<span style="color:#888;">no cloud-free imagery</span>`;
+  return header + current + buildSparklineSvg(id, quarterIdx);
+}
+
+let currentQuarterIdx = 0;
+let currentRegion = '__ALL__';
+
+function refresh() {
+  const q = quarters[currentQuarterIdx];
+  document.getElementById('quarterLabel').textContent = q;
+  let activeCount = 0;
+  marketIds.forEach(id => {
+    const m = markets[id];
+    const c = circles[id];
+    const visible = (currentRegion === '__ALL__' || m.region === currentRegion);
+    if (!visible) {
+      if (map.hasLayer(c)) markerLayer.removeLayer(c);
+      return;
+    }
+    if (!map.hasLayer(c)) c.addTo(markerLayer);
+    const rec = m.q[q];
+    if (rec) {
+      activeCount++;
+      const [val, n] = rec;
+      c.setStyle({ fillColor: colorFor(val), radius: radiusFor(n), fillOpacity: 0.85 });
+    } else {
+      c.setStyle({ fillColor: '#dddddd', radius: 2.5, fillOpacity: 0.4 });
+    }
+    // (re)build popup content lazily on open; if already open (e.g. during
+    // Play), refresh it in place so the sparkline's highlighted point moves.
+    if (!c.getPopup()) {
+      c.bindPopup('', { maxWidth: 300 });
+      c.on('popupopen', () => c.setPopupContent(popupHtml(id, currentQuarterIdx)));
+    }
+    if (c.isPopupOpen()) {
+      c.setPopupContent(popupHtml(id, currentQuarterIdx));
+    }
+  });
+  document.getElementById('activeCount').textContent = activeCount.toLocaleString();
+}
+
+const slider = document.getElementById('quarterSlider');
+slider.max = quarters.length - 1;
+slider.addEventListener('input', () => {
+  currentQuarterIdx = parseInt(slider.value, 10);
+  refresh();
+});
+
+regionSel.addEventListener('change', () => {
+  currentRegion = regionSel.value;
+  refresh();
+});
+
+let playing = false, timer = null;
+const playBtn = document.getElementById('playBtn');
+function tick() {
+  currentQuarterIdx = (currentQuarterIdx + 1) % quarters.length;
+  slider.value = currentQuarterIdx;
+  refresh();
+}
+playBtn.addEventListener('click', () => {
+  playing = !playing;
+  if (playing) {
+    playBtn.innerHTML = '&#10074;&#10074; Pause';
+    timer = setInterval(tick, parseInt(document.getElementById('speed').value, 10));
+  } else {
+    playBtn.innerHTML = '&#9654; Play';
+    clearInterval(timer);
+  }
+});
+document.getElementById('speed').addEventListener('change', (e) => {
+  if (playing) { clearInterval(timer); timer = setInterval(tick, parseInt(e.target.value, 10)); }
+});
+
+refresh();
+</script>
+</body>
+</html>
