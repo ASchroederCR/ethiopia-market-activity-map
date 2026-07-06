@@ -44,8 +44,9 @@
   .spark-wrap svg { display:block; }
   .legend-section { margin-top:10px; padding-top:8px; border-top:1px solid #e5e5e5; }
   .legend-chip { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:#333; margin:1px 8px 1px 0; }
-  .legend-dot { width:9px; height:9px; border-radius:50%; border:1px solid #000; display:inline-block; }
+  .legend-square { width:9px; height:9px; border:1px solid #000; display:inline-block; }
   .conflict-popup-notes { font-size:11px; color:#555; margin-top:3px; max-width:230px; }
+  .conflict-square-icon { background:transparent; border:none; }
 </style>
 </head>
 <body>
@@ -165,7 +166,7 @@ const conflictLegendEl = document.getElementById('conflictLegendChips');
 CONFLICT.event_types.forEach(t => {
   const chip = document.createElement('span');
   chip.className = 'legend-chip';
-  chip.innerHTML = `<span class="legend-dot" style="background:${eventColor(t)}"></span>${t}`;
+  chip.innerHTML = `<span class="legend-square" style="background:${eventColor(t)}"></span>${t}`;
   conflictLegendEl.appendChild(chip);
 });
 
@@ -229,19 +230,21 @@ const conflictLayer = L.layerGroup().addTo(map);
 const eventsByQuarter = {};
 quarters.forEach(q => { eventsByQuarter[q] = []; });
 
-function conflictRadiusFor(fatalities) {
-  return Math.min(11, 3 + Math.sqrt(fatalities) * 1.8);
+// square (not circular) markers, so conflict events are visually distinct from
+// the circular market markers at a glance
+function conflictSizeFor(fatalities) {
+  return Math.min(22, 6 + Math.sqrt(fatalities) * 3.2); // square side length, px
 }
 
 CONFLICT.events.forEach(ev => {
-  const marker = L.circleMarker([ev.lat, ev.lon], {
-    radius: conflictRadiusFor(ev.fat),
-    weight: 1.2,
-    color: '#fff',
-    fillColor: eventColor(ev.type),
-    fillOpacity: 0.85,
-    opacity: 0.9,
+  const size = conflictSizeFor(ev.fat);
+  const icon = L.divIcon({
+    className: 'conflict-square-icon',
+    html: `<div style="width:${size}px;height:${size}px;background:${eventColor(ev.type)};border:1.2px solid #fff;box-sizing:border-box;"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
+  const marker = L.marker([ev.lat, ev.lon], { icon, opacity: 0.5 });
   marker.bindPopup(
     `<b>${ev.type}</b>${ev.sub ? ' &ndash; ' + ev.sub : ''}<br/>` +
     `${ev.date} &middot; ${ev.loc || 'location unspecified'}<br/>` +
