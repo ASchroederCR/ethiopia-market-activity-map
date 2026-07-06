@@ -39,20 +39,43 @@ that market in that year.
 - `ethiopia_market_activity.json`, `ethiopia_conflict_events.json`, `ethiopia_adm1.geojson` — the
   aggregated data, also embedded in `index.html`
 
-## Analysis: distance decay of the conflict–activity relationship
+## Analysis: does conflict depress market activity?
 
-- `distance_decay.py` — first-differenced panel regressions (quarter fixed effects, SEs clustered by
-  market) of quarter-over-quarter changes in each market's activity index on changes in nearby ACLED
-  conflict, in two forms: (A) concentric-ring event counts (0–10 / 10–20 / 20–50 km) estimated jointly,
-  and (B) a continuous exponential-decay exposure Σ exp(−distance/λ) at λ = 5/10/20/40 km.
-- `distance_decay_rings.csv`, `distance_decay_results.csv` — the estimates. Headline findings: the
-  per-event effect on market activity is negative and significant at all distances and decays steeply
-  (~−0.86 points per event within 10 km vs ~−0.29 at 20–50 km); model fit favors a decay length of
-  roughly 20–40 km, so a ~20 km catchment captures most of the signal while staying attributable to a
-  specific market.
+A set of first-differenced panel regressions relate quarter-over-quarter changes in each market's
+activity index to changes in nearby ACLED conflict. First-differencing removes each market's fixed
+characteristics (baseline size/visibility); quarter fixed effects absorb nationwide shocks (weather,
+seasons, sensor mix); standard errors are clustered by market. Panel: 1,764 markets × 2018Q1–2023Q4,
+N = 31,772 market-quarter changes.
 
-Note: `distance_decay.py` reads `ethiopia_market_activity.json` from this repo, but also needs the raw
-ACLED event CSV from the [MAI replication package](https://github.com/pauldingus/MAI-replication-package)
+![Spatial decay of the conflict effect on market activity](distance_decay.png)
+
+**Headline result:** conflict events are followed by measurable drops in nearby market activity, and the
+per-event effect decays steeply with distance — an event within 10 km is associated with roughly a
+−0.86-point change in the activity index (where 100 ≈ normal market-day activity) versus −0.29 at
+20–50 km. The relationship is significant at every distance and the effect persists (weakly) into the
+following quarter.
+
+Scripts and outputs, in order of dependency:
+
+- `analyze_conflict_activity.py` — the main model at a fixed 20 km catchment (pooled, + quarter FE,
+  fatalities instead of counts, and a lagged-conflict spec). Writes `conflict_activity_panel.csv`, the
+  assembled market-quarter panel (levels + first differences) for reuse in Stata/R.
+- `radius_sensitivity.py` → `radius_sensitivity_results.csv` — re-estimates the main spec at 10 / 20 /
+  50 km catchments.
+- `distance_decay.py` → `distance_decay_rings.csv`, `distance_decay_results.csv` — estimates the spatial
+  gradient directly: (A) concentric-ring event counts (0–10 / 10–20 / 20–50 km) in a single joint model,
+  and (B) a continuous exponential-decay exposure Σ exp(−distance/λ) at λ = 5/10/20/40 km. Model fit
+  (AIC) favors a decay length of ~20–40 km, so a ~20 km catchment captures most of the signal while
+  staying attributable to a specific market.
+- `plot_distance_decay.py` → `distance_decay.png` — the figure above.
+
+These are associations, not causal estimates: conflict may co-move with other local disruptions
+(displacement, road closures), and cloud cover can correlate with season/region in ways quarter dummies
+only partly absorb.
+
+Note: the analysis scripts read `ethiopia_market_activity.json` from this repo, but the ones that rebuild
+conflict exposure by radius (`radius_sensitivity.py`, `distance_decay.py`) also need the raw ACLED event
+CSV from the [MAI replication package](https://github.com/pauldingus/MAI-replication-package)
 (`datasets/conflict/2012-07-01-2025-07-01-Ethiopia.csv`), expected at `../repo/` relative to the script.
 ACLED data is subject to [ACLED's terms of use](https://acleddata.com/terms-of-use/) and is therefore not
 redistributed here beyond the derived quarterly aggregates.
