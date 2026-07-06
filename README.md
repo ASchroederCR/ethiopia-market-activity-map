@@ -39,5 +39,23 @@ that market in that year.
 - `ethiopia_market_activity.json`, `ethiopia_conflict_events.json`, `ethiopia_adm1.geojson` — the
   aggregated data, also embedded in `index.html`
 
+## Analysis: distance decay of the conflict–activity relationship
+
+- `distance_decay.py` — first-differenced panel regressions (quarter fixed effects, SEs clustered by
+  market) of quarter-over-quarter changes in each market's activity index on changes in nearby ACLED
+  conflict, in two forms: (A) concentric-ring event counts (0–10 / 10–20 / 20–50 km) estimated jointly,
+  and (B) a continuous exponential-decay exposure Σ exp(−distance/λ) at λ = 5/10/20/40 km.
+- `distance_decay_rings.csv`, `distance_decay_results.csv` — the estimates. Headline findings: the
+  per-event effect on market activity is negative and significant at all distances and decays steeply
+  (~−0.86 points per event within 10 km vs ~−0.29 at 20–50 km); model fit favors a decay length of
+  roughly 20–40 km, so a ~20 km catchment captures most of the signal while staying attributable to a
+  specific market.
+
+Note: `distance_decay.py` reads `ethiopia_market_activity.json` from this repo, but also needs the raw
+ACLED event CSV from the [MAI replication package](https://github.com/pauldingus/MAI-replication-package)
+(`datasets/conflict/2012-07-01-2025-07-01-Ethiopia.csv`), expected at `../repo/` relative to the script.
+ACLED data is subject to [ACLED's terms of use](https://acleddata.com/terms-of-use/) and is therefore not
+redistributed here beyond the derived quarterly aggregates.
+
 This is an independent, derived visualization — not part of the official replication package, and not
 affiliated with the paper's authors.
