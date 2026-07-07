@@ -68,6 +68,30 @@ Scripts and outputs, in order of dependency:
   (AIC) favors a decay length of ~20–40 km, so a ~20 km catchment captures most of the signal while
   staying attributable to a specific market.
 - `plot_distance_decay.py` → `distance_decay.png` — the figure above.
+- `plot_distance_decay_by_region.py` → `distance_decay_by_region.png`, `distance_decay_by_region.csv` —
+  the same ring model re-estimated separately per admin-1 region, to compare the gradient across areas
+  (see below).
+
+### Regional variation
+
+![Conflict–activity distance decay by region](distance_decay_by_region.png)
+
+Re-estimating the ring model region by region (each panel repeats the national gradient in grey for
+reference) shows the national average masks real heterogeneity:
+
+- **Amhara** tracks the national gradient almost exactly, with tight confidence intervals — it is the
+  main driver of the countrywide result.
+- **Oromia** is noisy at close range (the 0–10 km estimate is even positive but not significant) and only
+  becomes precise in the 20–50 km ring.
+- **SNNPR** points to a much larger near-market effect (≈ −2 to −3 points per event) but with wide CIs, so
+  the magnitude is uncertain.
+- **Tigray** is the clear outlier: little or no per-event effect near markets, and a *positive* 20–50 km
+  coefficient. The 2018–2023 window spans the Tigray war, when conflict was near-ubiquitous and markets
+  were disrupted region-wide, so a market-level event count within a small radius is a poor proxy for
+  exposure there — a caution against reading the national coefficient as uniform.
+
+Only regions with ≥150 markets are shown; Beneshangul Gumu (39), Afar (15), Gambela (3) and Somali (3)
+have too few markets for reliable market-clustered inference and are omitted.
 
 These are associations, not causal estimates: conflict may co-move with other local disruptions
 (displacement, road closures), and cloud cover can correlate with season/region in ways quarter dummies
