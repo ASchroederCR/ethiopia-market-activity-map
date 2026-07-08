@@ -87,6 +87,9 @@ Scripts and outputs, in order of dependency:
 - `spatial_sensitivity.py` → `spatial_sensitivity.csv`, `spatial_sensitivity.png` — re-runs the
   contagion diagnostics across neighbor bands (15/25/40/60 km) and a k-NN weight, confirming the finding
   does not depend on the 40 km choice.
+- `spatial_bivariate.py` → `spatial_bivariate_by_quarter.csv`, `spatial_bivariate_hotspot.csv` — bivariate
+  Moran's I / LISA pairing a market's own conflict with its neighbors' activity change, to map the
+  spillover directly (see "Bivariate LISA" below). `plot_spatial_bivariate.py` → `spatial_bivariate.png`.
 
 ### Regional variation
 
@@ -183,6 +186,33 @@ Caveat specific to this test: "spillover" here cannot be cleanly separated from 
 markets within 40 km of each other may both sit near the same conflict event. Both mechanisms produce
 spatially clustered decline (contagion) and both are the opposite of substitution, so the qualitative
 answer is robust; but the estimates should not be read as pure market-to-market transmission.
+
+### Bivariate LISA: mapping the spillover directly
+
+The tests above show declines cluster; a **bivariate** Moran's I / LISA (`spatial_bivariate.py`) asks the
+sharper question — does a market's *own* conflict line up with its *neighbors'* activity change? It pairs
+each market's nearby-conflict count (x) with the mean activity change of its neighbors (y), both z-scored
+per quarter. A negative bivariate I means conflict hotspots sit amid *declining* neighbors.
+
+![Bivariate LISA of conflict vs neighbors' activity](spatial_bivariate.png)
+
+- **Globally the bivariate association is weak but one-signed**: mean I_B ≈ −0.02, significantly negative
+  in 5 of 23 quarters and *never* significantly positive. Crucially, the significant-negative quarters are
+  concentrated in the 2021-onward conflict surge (left panel, purple bars tracking the conflict line) — the
+  spillover association appears exactly when conflict is high, and is near-zero in calm periods.
+- **Locally, the spillover is sharply concentrated.** In the peak-conflict quarter (2021Q4) the map shows
+  113 significant "conflict hotspot, neighbors declining" cells versus just 8 "conflict hotspot, neighbors
+  rising" — a ~14:1 ratio — clustered on the north-central conflict band. This is the direct spatial
+  signature of conflict dragging down surrounding markets, and it complements the univariate LISA (which
+  used only activity, not conflict).
+- The far-northern Tigray cells classified as "low conflict, neighbors rising" are an artifact worth
+  noting: ACLED coverage there was degraded during the 2021 communications blackout, understating recorded
+  conflict near those markets — another reason the Tigray war years resist a simple small-radius exposure
+  measure.
+
+So the bivariate view reinforces the contagion reading — conflict is spatially tied to *neighbors'*
+decline, most visibly when and where conflict is intense — while being honest that the average global
+cross-association is modest.
 
 These are associations, not causal estimates: conflict may co-move with other local disruptions
 (displacement, road closures), and cloud cover can correlate with season/region in ways quarter dummies
