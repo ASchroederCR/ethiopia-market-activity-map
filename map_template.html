@@ -96,7 +96,7 @@
     <label style="font-size:12px;">Region: </label>
     <select id="regionFilter"><option value="__ALL__">All regions</option></select>
     <label style="font-size:12px; margin-left:10px;">
-      <input type="checkbox" id="adm1Toggle" checked/> Region boundaries
+      <input type="checkbox" id="adm1Toggle"/> Region boundaries
     </label>
     <label style="font-size:12px; margin-left:10px;">
       <input type="checkbox" id="conflictToggle" checked/> Conflict events
@@ -174,7 +174,7 @@ const adm1Layer = L.geoJSON(ADM1, {
     const name = feature.properties.ADM1_NAME || feature.properties.ADM1_EN || feature.properties.NAME_1 || '';
     if (name) layer.bindTooltip(String(name), { sticky: true, className: 'adm1-tip' });
   }
-}).addTo(map);
+}); // off by default; toggled on via the "Region boundaries" checkbox
 
 document.getElementById('adm1Toggle').addEventListener('change', e => {
   if (e.target.checked) adm1Layer.addTo(map); else map.removeLayer(adm1Layer);
