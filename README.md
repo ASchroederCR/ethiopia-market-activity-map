@@ -80,6 +80,10 @@ Scripts and outputs, in order of dependency:
   time lags to the ring and exponential-decay models (distributed-lag), testing whether the effect
   persists over time (see "Time lags" below).
 - `plot_spacetime_decay.py` → `spacetime_decay.png` — the space × time figure.
+- `spatial_autocorr.py` → `spatial_moran_by_quarter.csv`, `spatial_regressions.csv`,
+  `spatial_substitution_summary.csv`, `spatial_lisa_hotspot.csv` — spatial-autocorrelation tests of
+  whether conflict-linked declines cluster or substitute (see "Contagion vs substitution" below).
+- `plot_spatial_autocorr.py` → `spatial_autocorr.png` — the Moran's I / LISA-hotspot figure.
 
 ### Regional variation
 
@@ -128,6 +132,45 @@ Findings:
   best-fitting spatial scale is unchanged (λ ≈ 20 km). Practically: the contemporaneous model is a good
   approximation; lags refine it (and reveal near-market persistence) without overturning the spatial
   conclusion.
+
+### Contagion vs substitution: do declines cluster, or divert trade to neighbors?
+
+The models above establish that conflict lowers a market's own activity. A natural follow-up: when a
+market declines, do *nearby* markets also decline (spatial **contagion** / shared disruption), or do they
+*rise* as trade is diverted to them (**substitution**)? `spatial_autocorr.py` tests this with the
+spatial autocorrelation of the quarterly activity change (Δactivity), using a markets-within-40 km
+row-standardized spatial weight.
+
+![Spatial contagion of conflict-linked declines](spatial_autocorr.png)
+
+Three converging pieces of evidence, all pointing to **contagion, not substitution**:
+
+- **Global Moran's I of Δactivity is positive and significant in 22 of 23 quarters** (mean I ≈ +0.06,
+  0 significantly negative; 999-permutation inference). Neighboring markets' changes move *together*, in
+  every period — the opposite of the checkerboard pattern substitution would produce.
+- **Spatial-spillover regression** (neighbors' mean Δactivity on the market's own nearby-conflict change,
+  quarter FE, market-clustered SEs): coefficient −0.94 (p ≈ 1e-88). When a market's local conflict rises,
+  its *neighbors'* activity falls too. A positive coefficient would have been the substitution signature;
+  the sign is firmly negative. (This reduced form — own conflict predicting neighbors' outcome — sidesteps
+  the simultaneity of a full spatial-lag model; a descriptive neighbor-comovement slope is +0.40 and is
+  corroborated by the assumption-light Moran's I.)
+- **Among market-quarters where a market itself declined**, its neighbors also declined 64.5% of the time
+  when it was conflict-exposed vs 60.3% when not — declines are *more* spatially clustered near conflict.
+- The **LISA hotspot map** (right, for 2021Q4, the peak-conflict quarter) shows significant local
+  decline-clusters (dark red, "market ↓ amid declining neighbors") sitting directly on the dense conflict
+  band in north-central Ethiopia, while substitution cells (a market falling amid rising neighbors) are
+  comparatively rare (26 significant, vs 92 decline-clusters).
+
+So conflict does not simply relocate market activity next door — it depresses whole neighborhoods of
+markets together, creating spatial hotspots of decline. One visible exception on the map: parts of far-
+northern Tigray show *rise*-clusters amid heavy conflict in 2021Q4, consistent with the region-specific
+anomaly noted above (region-wide wartime disruption makes a small-radius conflict count a poor exposure
+proxy there).
+
+Caveat specific to this test: "spillover" here cannot be cleanly separated from *shared exposure* — two
+markets within 40 km of each other may both sit near the same conflict event. Both mechanisms produce
+spatially clustered decline (contagion) and both are the opposite of substitution, so the qualitative
+answer is robust; but the estimates should not be read as pure market-to-market transmission.
 
 These are associations, not causal estimates: conflict may co-move with other local disruptions
 (displacement, road closures), and cloud cover can correlate with season/region in ways quarter dummies
