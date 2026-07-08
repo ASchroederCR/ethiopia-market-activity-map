@@ -21,7 +21,8 @@ that market in that year.
 - Region (admin-1) filter and boundary overlay
 - Zoom-dependent hex-bin summary: zoomed out, markets are aggregated into ~25 km geographic hexagons
   colored by the mean activity index of the markets inside; zoom in past level 8 to reveal the
-  individual market points. Toggleable, and respects the quarter slider and region filter
+  individual market points. Toggleable, and respects the quarter slider and region filter. Click a hex
+  for a popup with a sparkline of the bin's quarterly mean activity index over the full period
 - [ACLED](https://acleddata.com/) conflict events plotted as color-coded squares for the selected
   quarter, toggleable, drawn on top of both the hexagons and the market points to visually compare
   conflict incidence against market activity

@@ -301,18 +301,114 @@ marketIds.forEach(id => {
 const hexLayer = L.layerGroup();
 const hexStats = {};   // per-hex aggregate for the current quarter (for popups/tooltips)
 
+// mean activity-index series across the markets in a hex (respecting the region
+// filter), one value per quarter, for the hex popup's time-series sparkline.
+function hexMeanSeries(key) {
+  const h = hexByKey[key];
+  const n = quarters.length;
+  const sums = new Array(n).fill(0);
+  const counts = new Array(n).fill(0);
+  h.memberIds.forEach(id => {
+    const m = markets[id];
+    if (currentRegion !== '__ALL__' && m.region !== currentRegion) return;
+    for (let i = 0; i < n; i++) {
+      const rec = m.q[quarters[i]];
+      if (rec) { sums[i] += rec[0]; counts[i] += 1; }
+    }
+  });
+  const series = new Array(n);
+  for (let i = 0; i < n; i++) series[i] = counts[i] ? sums[i] / counts[i] : null;
+  return { series, counts };
+}
+
+// sparkline of a hex's quarterly mean activity index (same visual style as the
+// per-market sparkline, minus the conflict bars), highlighting the current qtr.
+function buildHexSparklineSvg(key, highlightIdx) {
+  const { series, counts } = hexMeanSeries(key);
+  const valid = series.filter(v => v !== null);
+  if (valid.length === 0) {
+    return '<div class="obs-note">No market data in this hex for any quarter.</div>';
+  }
+  const maxN = Math.max(...counts);
+  const w = 240, h = 76, padL = 26, padR = 6, padT = 6, padB = 14;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  const yMin = Math.min(0, ...valid);
+  const yMax = Math.max(150, ...valid);
+  const yPad = (yMax - yMin) * 0.08 || 10;
+  const domainMin = yMin - yPad, domainMax = yMax + yPad;
+  const xAt = i => padL + (i / (quarters.length - 1)) * plotW;
+  const yAt = v => padT + (1 - (v - domainMin) / (domainMax - domainMin)) * plotH;
+
+  // faint bars encoding how many markets contributed to each quarter's mean
+  const barW = Math.max(1.5, (plotW / quarters.length) * 0.55);
+  const barMaxH = plotH * 0.85;
+  let bars = '';
+  if (maxN > 0) {
+    counts.forEach((cnt, i) => {
+      if (!cnt) return;
+      const bh = (cnt / maxN) * barMaxH;
+      bars += `<rect x="${(xAt(i) - barW / 2).toFixed(1)}" y="${((h - padB) - bh).toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#1a6ec1" opacity="0.12"><title>${quarters[i]}: mean of ${cnt} market${cnt === 1 ? '' : 's'}</title></rect>`;
+    });
+  }
+
+  // mean line, broken across quarters with no contributing market
+  let d = '', drawing = false;
+  series.forEach((v, i) => {
+    if (v === null) { drawing = false; return; }
+    d += `${drawing ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)} `;
+    drawing = true;
+  });
+
+  const zeroY = yAt(0).toFixed(1), hundredY = yAt(100).toFixed(1);
+  let yearTicks = '';
+  quarters.forEach((q, i) => {
+    if (q.endsWith('Q1')) yearTicks += `<text x="${xAt(i).toFixed(1)}" y="${h - 2}" font-size="8.5" fill="#888" text-anchor="middle">${q.slice(2, 4)}</text>`;
+  });
+  let dots = '';
+  series.forEach((v, i) => {
+    if (v === null) return;
+    const cur = i === highlightIdx;
+    dots += `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(v).toFixed(1)}" r="${cur ? 3.2 : 1.4}" fill="${cur ? '#1a6ec1' : '#888'}" ${cur ? 'stroke="#fff" stroke-width="1"' : ''}/>`;
+  });
+  let highlightLine = '';
+  if (highlightIdx != null) {
+    const x = xAt(highlightIdx).toFixed(1);
+    highlightLine = `<line x1="${x}" y1="${padT}" x2="${x}" y2="${h - padB}" stroke="#1a6ec1" stroke-width="1" stroke-dasharray="2,2" opacity="0.6"/>`;
+  }
+
+  return `
+  <div class="spark-wrap">
+    <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+      ${bars}
+      <line x1="${padL}" y1="${zeroY}" x2="${w - padR}" y2="${zeroY}" stroke="#ddd" stroke-width="1"/>
+      <text x="2" y="${parseFloat(zeroY) + 3}" font-size="8.5" fill="#aaa">0</text>
+      <line x1="${padL}" y1="${hundredY}" x2="${w - padR}" y2="${hundredY}" stroke="#ddd" stroke-width="1" stroke-dasharray="2,2"/>
+      <text x="2" y="${parseFloat(hundredY) + 3}" font-size="8.5" fill="#aaa">100</text>
+      ${highlightLine}
+      <path d="${d.trim()}" fill="none" stroke="#1a6ec1" stroke-width="1.4"/>
+      ${dots}
+      ${yearTicks}
+    </svg>
+    <div class="obs-note">Quarterly mean activity index across this hex's markets. Faint bars: # of markets in the mean.</div>
+  </div>`;
+}
+
 function hexPopupHtml(key) {
   const s = hexStats[key] || {};
   const q = quarters[currentQuarterIdx];
+  const spark = buildHexSparklineSvg(key, currentQuarterIdx);
   if (s.nData) {
     return `<b>Area summary</b> (~25&nbsp;km hex)<br/>Quarter: ${q}` +
       `<br/>Mean activity index: <b>${s.mean.toFixed(1)}</b>` +
       `<br/>Markets with data: ${s.nData} of ${s.nVisible}` +
-      `<br/><span class="obs-note">Zoom in past level ${HEX_REVEAL_ZOOM} to see the individual markets.</span>`;
+      spark +
+      `<span class="obs-note">Zoom in past level ${HEX_REVEAL_ZOOM} to see the individual markets.</span>`;
   }
-  return `<b>Area summary</b><br/>Quarter: ${q}` +
+  return `<b>Area summary</b> (~25&nbsp;km hex)<br/>Quarter: ${q}` +
     `<br/><span style="color:#888;">No market data this quarter</span>` +
-    `<br/>Markets here: ${s.nVisible || 0}`;
+    `<br/>Markets here: ${s.nVisible || 0}` +
+    spark;
 }
 
 Object.values(hexByKey).forEach(h => {
@@ -320,7 +416,7 @@ Object.values(hexByKey).forEach(h => {
     pane: 'hexPane', weight: 1, color: '#ffffff', opacity: 0.7,
     fillColor: '#cccccc', fillOpacity: 0.55,
   });
-  h.poly.bindPopup('', { maxWidth: 240, ...POPUP_AUTOPAN });
+  h.poly.bindPopup('', { maxWidth: 280, ...POPUP_AUTOPAN });
   h.poly.on('popupopen', () => h.poly.setPopupContent(hexPopupHtml(h.key)));
   h.poly.bindTooltip('', { sticky: true });
 });
