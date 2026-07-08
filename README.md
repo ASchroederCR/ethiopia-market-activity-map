@@ -84,6 +84,9 @@ Scripts and outputs, in order of dependency:
   `spatial_substitution_summary.csv`, `spatial_lisa_hotspot.csv` — spatial-autocorrelation tests of
   whether conflict-linked declines cluster or substitute (see "Contagion vs substitution" below).
 - `plot_spatial_autocorr.py` → `spatial_autocorr.png` — the Moran's I / LISA-hotspot figure.
+- `spatial_sensitivity.py` → `spatial_sensitivity.csv`, `spatial_sensitivity.png` — re-runs the
+  contagion diagnostics across neighbor bands (15/25/40/60 km) and a k-NN weight, confirming the finding
+  does not depend on the 40 km choice.
 
 ### Regional variation
 
@@ -166,6 +169,15 @@ markets together, creating spatial hotspots of decline. One visible exception on
 northern Tigray show *rise*-clusters amid heavy conflict in 2021Q4, consistent with the region-specific
 anomaly noted above (region-wide wartime disruption makes a small-radius conflict count a poor exposure
 proxy there).
+
+**Robustness to the neighbor definition** (`spatial_sensitivity.py`): the result does not hinge on the
+40 km band. Re-running across 15 / 25 / 40 / 60 km bands and a k-nearest-neighbor (k=8) weight, the
+spillover coefficient stays negative and highly significant everywhere (−0.77 to −1.08), Moran's I is
+positive and significant in 21–22 of 23 quarters under every weight (never significantly negative), and
+conflict-exposed declines always have more declining neighbors (61–65%) than non-exposed declines
+(58–61%). The contagion reading is stable across all specifications.
+
+![Sensitivity of the contagion finding to the spatial weight](spatial_sensitivity.png)
 
 Caveat specific to this test: "spillover" here cannot be cleanly separated from *shared exposure* — two
 markets within 40 km of each other may both sit near the same conflict event. Both mechanisms produce
