@@ -64,13 +64,16 @@
   Click a circle for details.</p>
   <p>Squares = <a href="https://acleddata.com/" target="_blank">ACLED</a> conflict events in that quarter.
   Each market's popup also plots nearby conflict counts against its activity history.</p>
+  <p>Zoomed out, markets are summarized as <b>hexagons</b> (~15&nbsp;km across) colored by the mean
+  activity index of the markets inside. Zoom in past level 8 to reveal the individual market points
+  underneath. Conflict squares stay visible on top at every zoom.</p>
 </div>
 
 <div class="panel" id="legend-panel">
   <div><b>Activity index</b></div>
   <div class="legend-grad"></div>
   <div class="legend-labels"><span>&lt;0</span><span>50</span><span>100</span><span>150</span><span>200+</span></div>
-  <div class="obs-note">Grey = no cloud-free imagery that quarter.<br/>Circle radius ~ number of images used.</div>
+  <div class="obs-note">Same scale colors circles (individual markets) and hexagons (area means).<br/>Grey = no cloud-free imagery that quarter. Circle radius ~ number of images used.</div>
   <div class="legend-section">
     <div style="margin-bottom:3px;"><b>Conflict events (ACLED)</b></div>
     <div id="conflictLegendChips"></div>
@@ -98,9 +101,15 @@
     <label style="font-size:12px; margin-left:10px;">
       <input type="checkbox" id="conflictToggle" checked/> Conflict events
     </label>
+    <label style="font-size:12px; margin-left:10px;">
+      <input type="checkbox" id="hexToggle" checked/> Hex summary
+    </label>
     <span style="font-size:11px; color:#666; margin-left:auto;">
       <span id="activeCount"></span> markets with data this quarter
     </span>
+  </div>
+  <div class="row" style="margin-bottom:0;">
+    <span id="zoomHint" style="font-size:11px; color:#1a6ec1;"></span>
   </div>
 </div>
 
@@ -193,8 +202,10 @@ function radiusFor(n) {
   return Math.min(9, 3 + Math.sqrt(n) * 1.3);
 }
 
-// build one circleMarker per market, store reference
-const markerLayer = L.layerGroup().addTo(map);
+// build one circleMarker per market, store reference. NOTE: markerLayer is not
+// added to the map here -- updateDisplayMode() decides between the point layer
+// and the hex-summary layer based on zoom.
+const markerLayer = L.layerGroup();
 const circles = {};
 marketIds.forEach(id => {
   const m = markets[id];
@@ -205,6 +216,117 @@ marketIds.forEach(id => {
   c.marketId = id;
   c.addTo(markerLayer);
   circles[id] = c;
+});
+
+// --- Geographic hex-bin summary layer -------------------------------------
+// A pointy-top hex grid (~15 km across) built in a local equirectangular
+// projection centered on the market cloud. Each occupied hex aggregates the
+// mean activity index of the markets inside it for the selected quarter, so
+// the zoomed-out view reads as a smooth activity surface. Rendered in its own
+// pane below the markers/boundaries; conflict squares (markerPane) stay on top.
+map.createPane('hexPane');
+map.getPane('hexPane').style.zIndex = 350;
+
+const HEX_KM = 8.7;              // center-to-vertex radius -> ~15 km flat-to-flat, ~17 km tall
+const HEX_REVEAL_ZOOM = 8;       // at this zoom and above, show points instead of hexes
+const SQRT3 = Math.sqrt(3);
+let hexEnabled = true;
+
+// projection reference = mean market location
+let _sumLat = 0, _sumLon = 0;
+marketIds.forEach(id => { _sumLat += markets[id].lat; _sumLon += markets[id].lon; });
+const LAT0 = _sumLat / marketIds.length, LON0 = _sumLon / marketIds.length;
+const KM_PER_DEG_LAT = 110.574;
+const KM_PER_DEG_LON = 111.320 * Math.cos(LAT0 * Math.PI / 180);
+
+const toXY = (lat, lon) => [(lon - LON0) * KM_PER_DEG_LON, (lat - LAT0) * KM_PER_DEG_LAT];
+const toLatLon = (x, y) => [LAT0 + y / KM_PER_DEG_LAT, LON0 + x / KM_PER_DEG_LON];
+
+function axialRound(q, r) {          // cube rounding for hex snapping
+  let x = q, z = r, y = -x - z;
+  let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+  const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+  if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
+  return [rx, rz];
+}
+function hexKeyFor(lat, lon) {
+  const [x, y] = toXY(lat, lon);
+  const q = (SQRT3 / 3 * x - 1 / 3 * y) / HEX_KM;
+  const r = (2 / 3 * y) / HEX_KM;
+  const [qi, ri] = axialRound(q, r);
+  return qi + '_' + ri;
+}
+function hexVertices(qi, ri) {
+  const px = HEX_KM * SQRT3 * (qi + ri / 2);
+  const py = HEX_KM * 1.5 * ri;
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const ang = Math.PI / 180 * (60 * i - 30);
+    pts.push(toLatLon(px + HEX_KM * Math.cos(ang), py + HEX_KM * Math.sin(ang)));
+  }
+  return pts;
+}
+
+// assign markets to hexes and build one polygon per occupied hex
+const hexByKey = {};
+marketIds.forEach(id => {
+  const m = markets[id];
+  const key = hexKeyFor(m.lat, m.lon);
+  m._hex = key;
+  if (!hexByKey[key]) {
+    const [qi, ri] = key.split('_').map(Number);
+    hexByKey[key] = { key, qi, ri, memberIds: [], poly: null };
+  }
+  hexByKey[key].memberIds.push(id);
+});
+
+const hexLayer = L.layerGroup();
+const hexStats = {};   // per-hex aggregate for the current quarter (for popups/tooltips)
+
+function hexPopupHtml(key) {
+  const s = hexStats[key] || {};
+  const q = quarters[currentQuarterIdx];
+  if (s.nData) {
+    return `<b>Area summary</b> (~15&nbsp;km hex)<br/>Quarter: ${q}` +
+      `<br/>Mean activity index: <b>${s.mean.toFixed(1)}</b>` +
+      `<br/>Markets with data: ${s.nData} of ${s.nVisible}` +
+      `<br/><span class="obs-note">Zoom in past level ${HEX_REVEAL_ZOOM} to see the individual markets.</span>`;
+  }
+  return `<b>Area summary</b><br/>Quarter: ${q}` +
+    `<br/><span style="color:#888;">No market data this quarter</span>` +
+    `<br/>Markets here: ${s.nVisible || 0}`;
+}
+
+Object.values(hexByKey).forEach(h => {
+  h.poly = L.polygon(hexVertices(h.qi, h.ri), {
+    pane: 'hexPane', weight: 1, color: '#ffffff', opacity: 0.7,
+    fillColor: '#cccccc', fillOpacity: 0.55,
+  });
+  h.poly.bindPopup('', { maxWidth: 240, ...POPUP_AUTOPAN });
+  h.poly.on('popupopen', () => h.poly.setPopupContent(hexPopupHtml(h.key)));
+  h.poly.bindTooltip('', { sticky: true });
+});
+
+function updateDisplayMode() {
+  const showHex = hexEnabled && map.getZoom() < HEX_REVEAL_ZOOM;
+  if (showHex) {
+    if (!map.hasLayer(hexLayer)) map.addLayer(hexLayer);
+    if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
+  } else {
+    if (map.hasLayer(hexLayer)) map.removeLayer(hexLayer);
+    if (!map.hasLayer(markerLayer)) map.addLayer(markerLayer);
+  }
+  const hint = document.getElementById('zoomHint');
+  if (hint) {
+    hint.textContent = showHex
+      ? '◆ Showing area hex summary — zoom in to reveal individual markets'
+      : '● Showing individual markets — zoom out for the area hex summary';
+  }
+}
+map.on('zoomend', updateDisplayMode);
+document.getElementById('hexToggle').addEventListener('change', e => {
+  hexEnabled = e.target.checked;
+  updateDisplayMode();
 });
 
 // --- ACLED conflict event points, grouped by quarter for cheap toggling ---
@@ -369,6 +491,7 @@ function refresh() {
   document.getElementById('quarterLabel').textContent = q;
   refreshConflictLayer();
   let activeCount = 0;
+  const hexAgg = {};   // hexKey -> {sum, nData, nVisible} for this quarter/region
   marketIds.forEach(id => {
     const m = markets[id];
     const c = circles[id];
@@ -379,6 +502,9 @@ function refresh() {
     }
     if (!map.hasLayer(c)) c.addTo(markerLayer);
     const rec = m.q[q];
+    const agg = hexAgg[m._hex] || (hexAgg[m._hex] = { sum: 0, nData: 0, nVisible: 0 });
+    agg.nVisible++;
+    if (rec) { agg.sum += rec[0]; agg.nData++; }
     if (rec) {
       activeCount++;
       const [val, n] = rec;
@@ -396,6 +522,30 @@ function refresh() {
       c.setPopupContent(popupHtml(id, currentQuarterIdx));
     }
   });
+
+  // restyle the hex-summary layer from this quarter's aggregates. Membership
+  // (which hexes are shown) depends only on the region filter, so add/remove
+  // is effectively a no-op except right after a region change.
+  Object.values(hexByKey).forEach(h => {
+    const a = hexAgg[h.key];
+    if (!a || a.nVisible === 0) {
+      if (hexLayer.hasLayer(h.poly)) hexLayer.removeLayer(h.poly);
+      hexStats[h.key] = { nVisible: 0, nData: 0 };
+      return;
+    }
+    if (!hexLayer.hasLayer(h.poly)) hexLayer.addLayer(h.poly);
+    const mean = a.nData ? a.sum / a.nData : null;
+    hexStats[h.key] = { mean, nData: a.nData, nVisible: a.nVisible };
+    if (a.nData) {
+      h.poly.setStyle({ fillColor: colorFor(mean), fillOpacity: 0.6 });
+      h.poly.setTooltipContent(`${mean.toFixed(0)} avg · ${a.nData}/${a.nVisible} mkts`);
+    } else {
+      h.poly.setStyle({ fillColor: '#dddddd', fillOpacity: 0.3 });
+      h.poly.setTooltipContent(`no data · ${a.nVisible} mkt${a.nVisible === 1 ? '' : 's'}`);
+    }
+    if (h.poly.isPopupOpen()) h.poly.setPopupContent(hexPopupHtml(h.key));
+  });
+
   document.getElementById('activeCount').textContent = activeCount.toLocaleString();
 }
 
@@ -433,6 +583,7 @@ document.getElementById('speed').addEventListener('change', (e) => {
 });
 
 refresh();
+updateDisplayMode();
 </script>
 </body>
 </html>

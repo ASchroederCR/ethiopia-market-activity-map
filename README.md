@@ -19,8 +19,12 @@ that market in that year.
 
 - Quarter slider with play/pause animation
 - Region (admin-1) filter and boundary overlay
-- [ACLED](https://acleddata.com/) conflict events plotted as color-coded triangles for the selected
-  quarter, toggleable, to visually compare conflict incidence against market activity
+- Zoom-dependent hex-bin summary: zoomed out, markets are aggregated into ~15 km geographic hexagons
+  colored by the mean activity index of the markets inside; zoom in past level 8 to reveal the
+  individual market points. Toggleable, and respects the quarter slider and region filter
+- [ACLED](https://acleddata.com/) conflict events plotted as color-coded squares for the selected
+  quarter, toggleable, drawn on top of both the hexagons and the market points to visually compare
+  conflict incidence against market activity
 - Click any market for a popup with a sparkline of its full quarterly activity-index time series
   (highlighting the currently selected quarter) with a second series overlaid showing nearby ACLED
   conflict events per quarter (count within 20km, and fatalities), so activity dips can be checked
