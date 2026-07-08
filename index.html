@@ -64,7 +64,7 @@
   Click a circle for details.</p>
   <p>Squares = <a href="https://acleddata.com/" target="_blank">ACLED</a> conflict events in that quarter.
   Each market's popup also plots nearby conflict counts against its activity history.</p>
-  <p>Zoomed out, markets are summarized as <b>hexagons</b> (~15&nbsp;km across) colored by the mean
+  <p>Zoomed out, markets are summarized as <b>hexagons</b> (~25&nbsp;km across) colored by the mean
   activity index of the markets inside. Zoom in past level 8 to reveal the individual market points
   underneath. Conflict squares stay visible on top at every zoom.</p>
 </div>
@@ -245,7 +245,7 @@ marketIds.forEach(id => {
 map.createPane('hexPane');
 map.getPane('hexPane').style.zIndex = 350;
 
-const HEX_KM = 8.7;              // center-to-vertex radius -> ~15 km flat-to-flat, ~17 km tall
+const HEX_KM = 14.4;             // center-to-vertex radius -> ~25 km flat-to-flat, ~29 km tall
 const HEX_REVEAL_ZOOM = 8;       // at this zoom and above, show points instead of hexes
 const SQRT3 = Math.sqrt(3);
 let hexEnabled = true;
@@ -305,7 +305,7 @@ function hexPopupHtml(key) {
   const s = hexStats[key] || {};
   const q = quarters[currentQuarterIdx];
   if (s.nData) {
-    return `<b>Area summary</b> (~15&nbsp;km hex)<br/>Quarter: ${q}` +
+    return `<b>Area summary</b> (~25&nbsp;km hex)<br/>Quarter: ${q}` +
       `<br/>Mean activity index: <b>${s.mean.toFixed(1)}</b>` +
       `<br/>Markets with data: ${s.nData} of ${s.nVisible}` +
       `<br/><span class="obs-note">Zoom in past level ${HEX_REVEAL_ZOOM} to see the individual markets.</span>`;
@@ -366,7 +366,7 @@ CONFLICT.events.forEach(ev => {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
-  const marker = L.marker([ev.lat, ev.lon], { icon, opacity: 0.5 });
+  const marker = L.marker([ev.lat, ev.lon], { icon, opacity: 0.3 });
   marker.bindPopup(
     `<b>${ev.type}</b>${ev.sub ? ' &ndash; ' + ev.sub : ''}<br/>` +
     `${ev.date} &middot; ${ev.loc || 'location unspecified'}<br/>` +

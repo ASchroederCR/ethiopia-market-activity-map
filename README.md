@@ -19,7 +19,7 @@ that market in that year.
 
 - Quarter slider with play/pause animation
 - Region (admin-1) filter and boundary overlay
-- Zoom-dependent hex-bin summary: zoomed out, markets are aggregated into ~15 km geographic hexagons
+- Zoom-dependent hex-bin summary: zoomed out, markets are aggregated into ~25 km geographic hexagons
   colored by the mean activity index of the markets inside; zoom in past level 8 to reveal the
   individual market points. Toggleable, and respects the quarter slider and region filter
 - [ACLED](https://acleddata.com/) conflict events plotted as color-coded squares for the selected
