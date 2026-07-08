@@ -76,6 +76,10 @@ Scripts and outputs, in order of dependency:
 - `plot_distance_decay_by_region.py` → `distance_decay_by_region.png`, `distance_decay_by_region.csv` —
   the same ring model re-estimated separately per admin-1 region, to compare the gradient across areas
   (see below).
+- `spacetime_decay.py` → `spacetime_decay_rings.csv`, `spacetime_decay_exp.csv` — adds 1- and 2-quarter
+  time lags to the ring and exponential-decay models (distributed-lag), testing whether the effect
+  persists over time (see "Time lags" below).
+- `plot_spacetime_decay.py` → `spacetime_decay.png` — the space × time figure.
 
 ### Regional variation
 
@@ -98,13 +102,40 @@ reference) shows the national average masks real heterogeneity:
 Only regions with ≥150 markets are shown; Beneshangul Gumu (39), Afar (15), Gambela (3) and Somali (3)
 have too few markets for reliable market-clustered inference and are omitted.
 
+### Time lags: does the effect persist? (space × time decay)
+
+The distance-decay model above is contemporaneous — conflict in quarter *t* vs the activity change in
+*t*. To check whether conflict effects also carry forward in time, `spacetime_decay.py` extends it to a
+**finite distributed-lag model in first differences**: each distance ring (and each exponential-decay
+exposure) enters at lags 0, 1 and 2 quarters, keeping the quarter-FE, market-clustered design. Writes
+`spacetime_decay_rings.csv` and `spacetime_decay_exp.csv`; `plot_spacetime_decay.py` →
+`spacetime_decay.png`.
+
+![Space × time decay of the conflict effect](spacetime_decay.png)
+
+Findings:
+
+- **Time lags are jointly significant** (Wald test that all six lag terms = 0: F = 26.7, p = 1.6e-4), so
+  the effect is not purely contemporaneous — this validates adding the lag structure.
+- **Persistence is concentrated near the market.** At 0–10 km the effect is still significant one quarter
+  later (t−1 ≈ −0.70, p < 0.05); the 10–20 km ring is essentially same-quarter only. So near-market
+  conflict has both the largest *and* the longest-lived footprint — decay in space and in time together.
+- **The cumulative (long-run) effect exceeds the same-quarter effect** for every ring — e.g. 20–50 km:
+  −0.31 contemporaneous vs −0.49 summed over three quarters — because the lag terms mostly reinforce
+  rather than reverse. The long-run effect is the impact on the *level* of activity of a sustained
+  conflict increase.
+- **But the lags add little explanatory power** (ΔAIC = −7, R² 0.0347 → 0.0353 on N = 28,945), and the
+  best-fitting spatial scale is unchanged (λ ≈ 20 km). Practically: the contemporaneous model is a good
+  approximation; lags refine it (and reveal near-market persistence) without overturning the spatial
+  conclusion.
+
 These are associations, not causal estimates: conflict may co-move with other local disruptions
 (displacement, road closures), and cloud cover can correlate with season/region in ways quarter dummies
 only partly absorb.
 
 Note: the analysis scripts read `ethiopia_market_activity.json` from this repo, but the ones that rebuild
-conflict exposure by radius (`radius_sensitivity.py`, `distance_decay.py`) also need the raw ACLED event
-CSV from the [MAI replication package](https://github.com/pauldingus/MAI-replication-package)
+conflict exposure by radius (`radius_sensitivity.py`, `distance_decay.py`, `spacetime_decay.py`) also need
+the raw ACLED event CSV from the [MAI replication package](https://github.com/pauldingus/MAI-replication-package)
 (`datasets/conflict/2012-07-01-2025-07-01-Ethiopia.csv`), expected at `../repo/` relative to the script.
 ACLED data is subject to [ACLED's terms of use](https://acleddata.com/terms-of-use/) and is therefore not
 redistributed here beyond the derived quarterly aggregates.
