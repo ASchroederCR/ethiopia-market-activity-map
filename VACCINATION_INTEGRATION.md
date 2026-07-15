@@ -86,7 +86,27 @@ highlands, not the low-coverage pastoralist periphery. Among areas that have mar
 signal (the policy-relevant one) is weak and **not significant after adjusting for region** (β ≈ −0.02,
 p ≈ 0.12). There is no reliable evidence here that market disruption tracks vaccination.
 
-**3.4 What the map adds.** Clicking any zone shows its MCV1, market count/activity/trend, and conflict
+**3.4 Fatalities instead of event counts (robustness).**
+Because event *counts* conflate conflict with population/media density, I repeated everything using
+conflict **fatalities** (severity). This does not rescue the naive hypothesis, and is quietly informative:
+
+- The positive correlation is **weaker** with fatalities than events (cluster raw r = **+0.21** vs +0.57),
+  exactly as expected if event counts are the more population-confounded measure.
+- After adjusting for population density **and** region, the linear fatalities→MCV1 association is
+  **essentially zero and non-significant** (β ≈ 0, p = 0.60) — i.e. *no* relationship either way. (A
+  log-fatalities specification keeps a weak positive, p = 0.002, so the null is somewhat functional-form
+  dependent; either way it is not negative.)
+- Events and fatalities are only moderately correlated across regions (**r = 0.42**): urban areas log many
+  low-lethality events (Addis: 355 events but ~0.6 fatalities/event — protests), while the northern war was
+  high-lethality (Tigray: 203 events, ~3.8 fatalities/event).
+- The **one** measure that leans the "expected" way is **fatalities per event (lethality)**: zones with more
+  lethal conflict have marginally *lower* MCV1 (zone r = **−0.24, p = 0.06**). It is only marginal, at the
+  zone level (n = 65), and still tracks the urban-protest vs rural-war distinction rather than a clean
+  conflict effect — so it is a hypothesis to probe with better data, not a finding.
+
+![Fatalities robustness](vax_fatalities.png)
+
+**3.5 What the map adds.** Clicking any zone shows its MCV1, market count/activity/trend, and conflict
 count together. The pattern is a **spatial disjunction**: e.g. Korahe (Somali) — MCV1 9%, 0 markets, 18
 conflict events; versus a Tigray zone — MCV1 68%, 50 markets, 233 conflict events.
 
@@ -167,6 +187,8 @@ and quite possibly misleading**, roughly in order of importance:
   (`ethiopia_zones_vax.geojson`) plus internal analysis tables.
 - `analyze_vax_conflict.py` and `analyze_vax_confounder.py` produce the correlations, region table, and
   confound adjustment; `plot_vax_conflict.py` draws the figure above.
+- `analyze_vax_fatalities.py` and `plot_vax_fatalities.py` produce the fatalities robustness check (§3.4)
+  and its figure.
 - **DHS data-use agreement:** the DHS microdata and cluster-level points are **not** included or published.
   Only **zone-level aggregates** (≥3 clusters) appear on the map and in `zone_integration_summary.csv`.
   Cluster-level intermediates stay local and are git-ignored.

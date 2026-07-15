@@ -61,6 +61,9 @@ that market in that year.
   the map) and `zone_integration_summary.csv`.
 - `analyze_vax_conflict.py`, `analyze_vax_confounder.py` — association analysis and the population-density
   confound check → `vax_region_summary.csv`, `vax_zone_analysis.csv`.
+- `analyze_vax_fatalities.py` — repeats the relationships using conflict **fatalities** instead of event
+  counts (the positive link weakens and, after density + region adjustment, becomes null). `plot_vax_fatalities.py`
+  → `vax_fatalities.png`.
 - `plot_vax_conflict.py` → `vax_conflict_market.png` — the summary figure.
 - The DHS microdata and cluster-level points are **not** published (data-use agreement); only zone-level
   aggregates (zones with ≥3 clusters) appear here. `cluster_integration.csv` is git-ignored.
