@@ -106,7 +106,27 @@ conflict **fatalities** (severity). This does not rescue the naive hypothesis, a
 
 ![Fatalities robustness](vax_fatalities.png)
 
-**3.5 What the map adds.** Clicking any zone shows its MCV1, market count/activity/trend, and conflict
+**3.5 Excluding non-violent ACLED events (Protests, Riots, Strategic developments).**
+Those three categories are heavily urban and mostly non-lethal, so they are a prime suspect for the
+population/urbanicity confound (e.g. Addis Ababa is only **26%** armed violence — most of its 355 nearby
+events are protests). Restricting ACLED to **armed violence** (Battles, Violence against civilians,
+Explosions/Remote violence — 73% of events, 5,259 of 7,188) and recomputing everything:
+
+- The raw positive correlation **weakens substantially** (cluster events **+0.57 → +0.36**), confirming
+  that urban protests inflated the confounded positive. But it **does not reverse**: after adjusting for
+  population density and region it remains positive and significant (partial r +0.32; β p = 0.005).
+- The reason is structural: even counting only armed violence, the **low-vaccination pastoralist lowlands
+  are also low-violence** (Somali: 12 violent events near clusters, MCV1 14%), while the northern highland
+  wars (Tigray: 175 violent events, MCV1 67%; Amhara: 92, 65%) sit in areas with better health
+  infrastructure than the periphery.
+
+The figure below collects the MCV1–conflict correlation under every definition and adjustment tried. The
+naive hypothesis predicts a *negative* correlation; **none of the six is negative** — they range from +0.16
+to +0.57, weakening (never reversing) as urban protests are removed and density is controlled.
+
+![Conflict-definition robustness](vax_conflict_definitions.png)
+
+**3.6 What the map adds.** Clicking any zone shows its MCV1, market count/activity/trend, and conflict
 count together. The pattern is a **spatial disjunction**: e.g. Korahe (Somali) — MCV1 9%, 0 markets, 18
 conflict events; versus a Tigray zone — MCV1 68%, 50 markets, 233 conflict events.
 
@@ -136,9 +156,10 @@ and quite possibly misleading**, roughly in order of importance:
    different zone tessellation or neighbourhood radius (I used 50 km; other choices would move the numbers).
 
 4. **ACLED counts are not population-normalised.** Event counts conflate conflict *intensity* with
-   *population and media density*. A conflict measure per capita, or fatalities per capita, or a
-   displacement/access-disruption measure, could tell a different story. This is the main driver of the
-   confounding in §3.2 and I have only partially adjusted for it.
+   *population and media density*. This is the main driver of the confounding in §3.2. §3.4 (fatalities)
+   and §3.5 (armed violence only) partially address it — both weaken the confounded positive correlation —
+   but a true per-capita conflict rate, or a displacement/service-access-disruption measure, was not
+   constructed here and could change the picture further.
 
 5. **The vaccination outcome is a *modeled* quantity.** The zone layer aggregates the report's BYM2-smoothed
    posterior means. Using smoothed values as if they were observed data **understates uncertainty** and can
@@ -189,6 +210,8 @@ and quite possibly misleading**, roughly in order of importance:
   confound adjustment; `plot_vax_conflict.py` draws the figure above.
 - `analyze_vax_fatalities.py` and `plot_vax_fatalities.py` produce the fatalities robustness check (§3.4)
   and its figure.
+- `analyze_vax_violent.py` and `plot_vax_violent.py` produce the armed-violence-only restriction (§3.5)
+  and the `vax_conflict_definitions.png` summary.
 - **DHS data-use agreement:** the DHS microdata and cluster-level points are **not** included or published.
   Only **zone-level aggregates** (≥3 clusters) appear on the map and in `zone_integration_summary.csv`.
   Cluster-level intermediates stay local and are git-ignored.

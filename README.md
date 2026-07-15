@@ -64,6 +64,10 @@ that market in that year.
 - `analyze_vax_fatalities.py` — repeats the relationships using conflict **fatalities** instead of event
   counts (the positive link weakens and, after density + region adjustment, becomes null). `plot_vax_fatalities.py`
   → `vax_fatalities.png`.
+- `analyze_vax_violent.py` — repeats the relationships restricting ACLED to **armed violence** (dropping
+  Protests, Riots, Strategic developments); the confounded positive correlation weakens (+0.57 → +0.36) but
+  does not reverse. `plot_vax_violent.py` → `vax_conflict_definitions.png` collects the MCV1–conflict
+  correlation across all conflict definitions (all positive).
 - `plot_vax_conflict.py` → `vax_conflict_market.png` — the summary figure.
 - The DHS microdata and cluster-level points are **not** published (data-use agreement); only zone-level
   aggregates (zones with ≥3 clusters) appear here. `cluster_integration.csv` is git-ignored.
