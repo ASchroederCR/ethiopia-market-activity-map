@@ -112,6 +112,9 @@
       <input type="checkbox" id="conflictToggle" checked/> Conflict events
     </label>
     <label style="font-size:12px; margin-left:10px;">
+      <input type="checkbox" id="marketsToggle" checked/> Markets
+    </label>
+    <label style="font-size:12px; margin-left:10px;">
       <input type="checkbox" id="hexToggle" checked/> Hex summary
     </label>
     <label style="font-size:12px; margin-left:10px;">
@@ -398,6 +401,7 @@ const HEX_KM = 14.4;             // center-to-vertex radius -> ~25 km flat-to-fl
 const HEX_REVEAL_ZOOM = 8;       // at this zoom and above, show points instead of hexes
 const SQRT3 = Math.sqrt(3);
 let hexEnabled = true;
+let marketsEnabled = true;   // master switch for both market points and hexes
 
 // projection reference = mean market location
 let _sumLat = 0, _sumLon = 0;
@@ -571,6 +575,14 @@ Object.values(hexByKey).forEach(h => {
 });
 
 function updateDisplayMode() {
+  const hint = document.getElementById('zoomHint');
+  // master "Markets" switch: hide both the hex summary and the point markers
+  if (!marketsEnabled) {
+    if (map.hasLayer(hexLayer)) map.removeLayer(hexLayer);
+    if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
+    if (hint) hint.textContent = '○ Markets hidden — tick "Markets" to show them';
+    return;
+  }
   const showHex = hexEnabled && map.getZoom() < HEX_REVEAL_ZOOM;
   if (showHex) {
     if (!map.hasLayer(hexLayer)) map.addLayer(hexLayer);
@@ -579,7 +591,6 @@ function updateDisplayMode() {
     if (map.hasLayer(hexLayer)) map.removeLayer(hexLayer);
     if (!map.hasLayer(markerLayer)) map.addLayer(markerLayer);
   }
-  const hint = document.getElementById('zoomHint');
   if (hint) {
     hint.textContent = showHex
       ? '◆ Showing area hex summary — zoom in to reveal individual markets'
@@ -589,6 +600,12 @@ function updateDisplayMode() {
 map.on('zoomend', updateDisplayMode);
 document.getElementById('hexToggle').addEventListener('change', e => {
   hexEnabled = e.target.checked;
+  updateDisplayMode();
+});
+document.getElementById('marketsToggle').addEventListener('change', e => {
+  marketsEnabled = e.target.checked;
+  // the hex sub-option is meaningless while markets are hidden
+  document.getElementById('hexToggle').disabled = !marketsEnabled;
   updateDisplayMode();
 });
 
