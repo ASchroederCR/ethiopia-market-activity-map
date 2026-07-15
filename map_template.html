@@ -67,6 +67,10 @@
   <p>Zoomed out, markets are summarized as <b>hexagons</b> (~25&nbsp;km across) colored by the mean
   activity index of the markets inside. Zoom in past level 8 to reveal the individual market points
   underneath. Conflict squares stay visible on top at every zoom.</p>
+  <p>The <b>purple choropleth</b> is measles-vaccination (MCV1) coverage by admin-2 zone from the
+  <a href="https://dhsprogram.com/" target="_blank">2024-25 EDHS</a> (children 12-23&nbsp;mo) — a single
+  2024-25 snapshot, so it does <i>not</i> change with the slider. Darker&nbsp;=&nbsp;lower coverage. Click a
+  zone for its vaccination, market, and conflict summary.</p>
 </div>
 
 <div class="panel" id="legend-panel">
@@ -78,6 +82,12 @@
     <div style="margin-bottom:3px;"><b>Conflict events (ACLED)</b></div>
     <div id="conflictLegendChips"></div>
     <div class="obs-note">Square size ~ fatalities. Shown for the selected quarter only.</div>
+  </div>
+  <div class="legend-section">
+    <div style="margin-bottom:3px;"><b>MCV1 vaccination (EDHS 2024-25)</b></div>
+    <div class="legend-grad" style="background:linear-gradient(to right,#3f007d,#6a51a3,#9e9ac8,#cbc9e2,#f2f0f7);"></div>
+    <div class="legend-labels"><span>&lt;15%</span><span>30%</span><span>45%</span><span>60%</span><span>&gt;60%</span></div>
+    <div class="obs-note">Admin-2 zones; darker = lower coverage. Blank zones: too few DHS clusters.</div>
   </div>
 </div>
 
@@ -104,6 +114,9 @@
     <label style="font-size:12px; margin-left:10px;">
       <input type="checkbox" id="hexToggle" checked/> Hex summary
     </label>
+    <label style="font-size:12px; margin-left:10px;">
+      <input type="checkbox" id="vaxToggle" checked/> Vaccination
+    </label>
     <span style="font-size:11px; color:#666; margin-left:auto;">
       <span id="activeCount"></span> markets with data this quarter
     </span>
@@ -117,6 +130,7 @@
 const ACTIVITY = __ACTIVITY_DATA__;
 const ADM1 = __ADM1_DATA__;
 const CONFLICT = __CONFLICT_DATA__;
+const VAX = __VAX_DATA__;
 
 const quarters = ACTIVITY.quarters;
 const markets = ACTIVITY.markets;
@@ -167,6 +181,60 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
   subdomains: 'abcd', maxZoom: 18
 }).addTo(map);
+
+// --- Measles vaccination (MCV1) admin-2 choropleth (EDHS 2024-25) ----------
+// Static background layer (a single 2024-25 cross-section; it does NOT vary with
+// the quarter slider, which drives the market/conflict layers 2018-2023).
+// Sits in its own pane below everything else so points read on top.
+map.createPane('vaxPane');
+map.getPane('vaxPane').style.zIndex = 250;
+map.getPane('vaxPane').style.pointerEvents = 'auto';
+
+// sequential purple: LOW coverage = dark (draws the eye to the deficit)
+function vaxColor(p) {
+  if (p === null || p === undefined) return null;          // suppressed / no data
+  const stops = [[0.15, '#3f007d'], [0.30, '#6a51a3'], [0.45, '#9e9ac8'],
+                 [0.60, '#cbc9e2'], [1.01, '#f2f0f7']];
+  for (const [thr, c] of stops) if (p < thr) return c;
+  return '#f2f0f7';
+}
+function fmtPct(x) { return (x === null || x === undefined) ? 'n/a' : (x * 100).toFixed(0) + '%'; }
+function fmtTrend(x) {
+  if (x === null || x === undefined || isNaN(x)) return 'n/a';
+  return (x >= 0 ? '+' : '') + x.toFixed(2) + ' /qtr';
+}
+
+let vaxVisible = true;
+const vaxLayer = L.geoJSON(VAX, {
+  pane: 'vaxPane',
+  style: f => {
+    const p = f.properties.mcv1_smooth;
+    const c = vaxColor(p);
+    return c === null
+      ? { fillColor: '#000', fillOpacity: 0, color: '#bbb', weight: 0.5, opacity: 0.4 }
+      : { fillColor: c, fillOpacity: 0.6, color: '#ffffff', weight: 0.6, opacity: 0.7 };
+  },
+  onEachFeature: (f, layer) => {
+    const p = f.properties;
+    layer.bindPopup(
+      `<b>${p.zone}</b> (admin-2 zone)` +
+      `<br/><b>MCV1 coverage:</b> ${fmtPct(p.mcv1_smooth)}` +
+      (p.mcv1_reliable ? ` <span style="color:#888;">(${p.n_clusters} DHS clusters, ${p.n_children} children)</span>`
+                       : ` <span style="color:#c0392b;">(insufficient DHS sampling)</span>`) +
+      `<hr style="margin:4px 0;border:none;border-top:1px solid #eee;"/>` +
+      `<b>Markets:</b> ${p.n_markets || 0}` +
+      (p.n_markets ? ` &middot; mean activity ${p.mkt_idx == null ? 'n/a' : p.mkt_idx.toFixed(0)}` +
+                     ` &middot; trend ${fmtTrend(p.mkt_trend)}` : '') +
+      `<br/><b>ACLED conflict (2018-2023):</b> ${p.conflict_events || 0} events, ${p.fatalities || 0} fatalities`,
+      { maxWidth: 260, ...POPUP_AUTOPAN }
+    );
+  },
+}).addTo(map);
+
+document.getElementById('vaxToggle').addEventListener('change', e => {
+  vaxVisible = e.target.checked;
+  if (vaxVisible) vaxLayer.addTo(map); else map.removeLayer(vaxLayer);
+});
 
 const adm1Layer = L.geoJSON(ADM1, {
   style: { color: '#555', weight: 1, fillOpacity: 0, dashArray: '3,3' },

@@ -1,0 +1,4 @@
+# DHS microdata-derived, cluster-level intermediates are NOT published
+# (DHS data-use agreement restricts redistribution; only zone-level aggregates
+# are committed). See VACCINATION_INTEGRATION.md.
+cluster_integration.csv

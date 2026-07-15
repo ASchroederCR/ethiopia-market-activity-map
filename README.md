@@ -26,6 +26,10 @@ that market in that year.
 - [ACLED](https://acleddata.com/) conflict events plotted as color-coded squares for the selected
   quarter, toggleable, drawn on top of both the hexagons and the market points to visually compare
   conflict incidence against market activity
+- **Measles-vaccination (MCV1) choropleth** by admin-2 zone from the 2024-25 EDHS (toggleable purple
+  background layer; darker = lower coverage). A single 2024-25 snapshot, so it does not vary with the
+  quarter slider. Each zone's popup shows its vaccination, market, and conflict summary together. See
+  [`VACCINATION_INTEGRATION.md`](VACCINATION_INTEGRATION.md) for the analysis and its caveats
 - Click any market for a popup with a sparkline of its full quarterly activity-index time series
   (highlighting the currently selected quarter) with a second series overlaid showing nearby ACLED
   conflict events per quarter (count within 20km, and fatalities), so activity dips can be checked
@@ -43,6 +47,23 @@ that market in that year.
 - `build_html.py` — embeds those JSON/GeoJSON files into `map_template.html` to produce `index.html`
 - `ethiopia_market_activity.json`, `ethiopia_conflict_events.json`, `ethiopia_adm1.geojson` — the
   aggregated data, also embedded in `index.html`
+
+### Vaccination integration
+
+- [`VACCINATION_INTEGRATION.md`](VACCINATION_INTEGRATION.md) — the findings document: integrates EDHS
+  2024-25 measles-vaccination coverage with the market and conflict layers, with independent reproduction
+  of the DHS coverage figures and an extended, transparent critique of the assumptions. **Key (counter-
+  intuitive) result: low vaccination does *not* coincide with conflict or market decline** — the deficit is
+  in the low-conflict pastoralist lowlands, and the positive conflict–vaccination correlation is largely a
+  population-density confound.
+- `build_vax_integration.py` — reproduces cluster MCV1 from DHS microdata, recovers the report's smoothed
+  surface, spatially joins the three layers to admin-2 zones → `ethiopia_zones_vax.geojson` (embedded in
+  the map) and `zone_integration_summary.csv`.
+- `analyze_vax_conflict.py`, `analyze_vax_confounder.py` — association analysis and the population-density
+  confound check → `vax_region_summary.csv`, `vax_zone_analysis.csv`.
+- `plot_vax_conflict.py` → `vax_conflict_market.png` — the summary figure.
+- The DHS microdata and cluster-level points are **not** published (data-use agreement); only zone-level
+  aggregates (zones with ≥3 clusters) appear here. `cluster_integration.csv` is git-ignored.
 
 ## Analysis: does conflict depress market activity?
 
